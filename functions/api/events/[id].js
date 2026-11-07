@@ -1,7 +1,7 @@
-import {reply,fail,serverError,getDb,hashToken,readJson,mapEvent,mapResponse,canView} from '../../../src/_lib.js';
+import {reply,fail,serverError,getDb,verifyAdmin,readJson,mapEvent,mapResponse,canView} from '../../../src/_lib.js';
 const uuidRe=/^(?:[0-9a-f]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 const fetchEvent=async(db,id)=>db.prepare('SELECT * FROM events WHERE id=?').bind(id).first();
-async function authorize(request,row){const token=request.headers.get('X-Admin-Token');return token&&token.length<256&&(await hashToken(token))===row.admin_hash}
+async function authorize(request,row){return verifyAdmin(request,row)}
 
 export async function onRequestGet({request,params,env}){
   const db=getDb(env);if(!db)return fail('Datenbank nicht eingerichtet. Bitte zuerst Cloudflare D1 anbinden.',503);
@@ -18,7 +18,7 @@ export async function onRequestGet({request,params,env}){
       const h=rt&&rt.length<256?await hashToken(rt):null;
       visibleResponses=h?visibleResponses.filter(r=>r.respondent_hash===h):[];
     }
-    return reply({event:mapEvent(row),responses:visibleResponses.map(mapResponse),participantCount:(results.results||[]).length,resultsVisible:!!permitted,messages:messages.results||[]});
+    return reply({event:mapEvent(row),responses:visibleResponses.map(mapResponse),participantCount:(results.results||[]).length,resultsVisible:!!permitted,isOrganizer:!!(await authorize(request,row)),messages:messages.results||[]});
   }catch(e){return serverError(e)}
 }
 export async function onRequestPatch({request,params,env}){

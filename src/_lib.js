@@ -8,6 +8,29 @@ export const hashToken = async token => {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
   return [...new Uint8Array(buf)].map(x=>x.toString(16).padStart(2,'0')).join('');
 };
+// Versioned salted PBKDF2 for new secrets. The old SHA-256 values remain valid for existing events.
+const toHex = bytes => [...bytes].map(x=>x.toString(16).padStart(2,'0')).join('');
+const fromHex = hex => new Uint8Array(hex.match(/.{2}/g).map(x=>parseInt(x,16)));
+async function deriveSecret(secret,salt,iterations){
+  const base = await crypto.subtle.importKey('raw',new TextEncoder().encode(secret),'PBKDF2',false,['deriveBits']);
+  return toHex(new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt,iterations},base,256)));
+}
+export async function secureHash(secret){
+  const salt=crypto.getRandomValues(new Uint8Array(16));
+  const rounds=110000;
+  return `pbkdf2$${rounds}$${toHex(salt)}$${await deriveSecret(secret,salt,rounds)}`;
+}
+export async function checkSecret(secret,stored){
+  if(!secret||typeof secret!=='string'||secret.length>256||!stored)return false;
+  if(!stored.startsWith('pbkdf2$'))return (await hashToken(secret))===stored;
+  const parts=stored.split('$');
+  if(parts.length!==4||!/^\d{4,8}$/.test(parts[1])||!/^([0-9a-f]{2}){16}$/.test(parts[2])||!/^([0-9a-f]{2}){32}$/.test(parts[3]))return false;
+  const rounds=Number(parts[1]);if(rounds<50000||rounds>1000000)return false;
+  const actual=await deriveSecret(secret,fromHex(parts[2]),rounds);
+  let difference=0;for(let i=0;i<actual.length;i++)difference|=actual.charCodeAt(i)^parts[3].charCodeAt(i);
+  return difference===0;
+}
+export async function verifyAdmin(request,row){return checkSecret(request.headers.get('X-Admin-Token'),row.admin_hash)};
 export const validString = (v,max,required=false) => typeof v==='string' && v.length <= max && (!required || v.trim().length>0);
 export async function readJson(request){
   if(Number(request.headers.get('content-length')||'0')>20000)throw new Error('Anfrage zu gross');
@@ -36,9 +59,9 @@ export function ensureProgram(input){
 export async function canView(request,row){
   if(!row.password_hash)return true;
   const admin=request.headers.get('X-Admin-Token');
-  if(admin&&admin.length<256&&(await hashToken(admin))===row.admin_hash)return true;
+  if(await verifyAdmin(request,row))return true;
   const pass=request.headers.get('X-Event-Password');
-  return !!(pass&&pass.length<256&&(await hashToken(pass))===row.password_hash);
+  return checkSecret(pass,row.password_hash);
 }
 export const mapEvent = row => ({
   id:row.id, title:row.title, organizer:row.organizer,description:row.description||'',
