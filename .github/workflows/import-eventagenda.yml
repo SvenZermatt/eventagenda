@@ -1,0 +1,32 @@
+name: EventAgenda-Quellcode importieren
+
+on:
+  push:
+    paths:
+      - '.github/workflows/import-eventagenda.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Quellcodepaket laden
+        run: |
+          curl --fail --location --retry 3 --silent --show-error             'https://media.base44.com/files/public/690467d02b52a70318eb550e/27905c05c_EventAgenda-Neuaufbau.zip'             -o /tmp/eventagenda-code.zip
+          test "$(wc -c < /tmp/eventagenda-code.zip)" -gt 10000
+          unzip -t /tmp/eventagenda-code.zip
+      - name: Anwendung importieren
+        run: |
+          unzip -o /tmp/eventagenda-code.zip -d .
+          git status --short
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .gitignore README.md functions public schema.sql src
+          if ! git diff --cached --quiet; then
+            git commit -m 'EventAgenda-App importieren [skip ci]'
+            git push
+          fi
