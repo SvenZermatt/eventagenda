@@ -1,0 +1,9 @@
+.DS_Store
+node_modules/
+.env
+.env.*
+*.zip
+# Private backups / NEVER commit participant data or admin tokens
+admin-links.json
+import.sql
+eventagenda-private-data/

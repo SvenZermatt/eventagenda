@@ -1,6 +1,6 @@
 # EventAgenda – unabhängiger Neuanfang
 
-Eine neu entwickelte Terminabstimmung (inspiriert von der beschriebenen ursprünglichen EventAgenda-Idee). **Eigenständiger Nachbau ohne Base44-Code. Eine separate Datenmigration ist vorbereitet.**
+Eine neu entwickelte Terminabstimmung (inspiriert von der beschriebenen ursprünglichen EventAgenda-Idee). **Kein Base44-Code, kein Zugriff auf alte Base44-Events und keine automatische Datenmigration.**
 
 ## Funktionen
 
